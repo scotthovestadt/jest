@@ -15,7 +15,7 @@ import {JestEnvironment as Environment} from '@jest/environment';
 import {ModuleMap, FS as HasteFS} from 'jest-haste-map';
 import HasteResolver from 'jest-resolve';
 import Runtime from 'jest-runtime';
-import {worker} from './coverage_worker';
+import {worker, setup} from './coverage_worker';
 
 export type ReporterOnStartOptions = {
   estimatedTime: number;
@@ -35,14 +35,10 @@ export type Test = {
   path: Config.Path;
 };
 
-export type CoverageWorker = {worker: typeof worker};
+export type CoverageWorker = {worker: typeof worker; setup: typeof setup};
 
 export type CoverageReporterOptions = {
   changedFiles?: Set<Config.Path>;
-};
-
-export type CoverageReporterSerializedOptions = {
-  changedFiles?: Array<Config.Path>;
 };
 
 export type OnTestStart = (test: Test) => Promise<void>;

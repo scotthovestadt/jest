@@ -8,17 +8,14 @@
 import fs from 'fs';
 import {Config} from '@jest/types';
 import exit from 'exit';
-import {CoverageReporterSerializedOptions} from './types';
 
 import generateEmptyCoverage, {
   CoverageWorkerResult,
 } from './generateEmptyCoverage';
 
 export type CoverageWorkerData = {
-  globalConfig: Config.GlobalConfig;
-  config: Config.ProjectConfig;
+  configName: string;
   path: Config.Path;
-  options?: CoverageReporterSerializedOptions;
 };
 
 export {CoverageWorkerResult};
@@ -29,17 +26,37 @@ process.on('uncaughtException', err => {
   exit(1);
 });
 
+let globalConfig: Config.GlobalConfig;
+const configs = new Map<string, Config.ProjectConfig>();
+let changedFiles: Set<string> | undefined;
+export function setup(setupData: {
+  globalConfig: Config.GlobalConfig;
+  configs: Array<Config.ProjectConfig>;
+  changedFiles?: Array<string>;
+}) {
+  globalConfig = setupData.globalConfig;
+  for (const config of setupData.configs) {
+    configs.set(config.name, config);
+  }
+  if (setupData.changedFiles) {
+    changedFiles = new Set<string>(setupData.changedFiles);
+  }
+}
+
 export function worker({
-  config,
-  globalConfig,
+  configName,
   path,
-  options,
 }: CoverageWorkerData): CoverageWorkerResult | null {
+  const config = configs.get(configName);
+  if (!config) {
+    throw new Error('Cannot find config with name: ' + configName);
+  }
+
   return generateEmptyCoverage(
     fs.readFileSync(path, 'utf8'),
     path,
     globalConfig,
     config,
-    options && options.changedFiles && new Set(options.changedFiles),
+    changedFiles,
   );
 }

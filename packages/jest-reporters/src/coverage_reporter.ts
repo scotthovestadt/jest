@@ -120,7 +120,8 @@ export default class CoverageReporter extends BaseReporter {
     globalConfig: Config.GlobalConfig,
     contexts: Set<Context>,
   ): Promise<void> {
-    const files: Array<{config: Config.ProjectConfig; path: string}> = [];
+    const files: Array<{configName: string; path: string}> = [];
+    const configMap: Map<string, Config.ProjectConfig> = new Map();
 
     contexts.forEach(context => {
       const config = context.config;
@@ -130,12 +131,16 @@ export default class CoverageReporter extends BaseReporter {
       ) {
         context.hasteFS
           .matchFilesWithGlob(globalConfig.collectCoverageFrom, config.rootDir)
-          .forEach(filePath =>
+          .forEach(filePath => {
             files.push({
-              config,
+              configName: config.name,
               path: filePath,
-            }),
-          );
+            });
+
+            if (!configMap.has(config.name)) {
+              configMap.set(config.name, config);
+            }
+          });
       }
     });
 
@@ -145,52 +150,52 @@ export default class CoverageReporter extends BaseReporter {
 
     if (isInteractive) {
       process.stderr.write(
-        RUNNING_TEST_COLOR('Running coverage on untested files...'),
+        RUNNING_TEST_COLOR(
+          `Running coverage on ${files.length} untested files...`,
+        ),
       );
     }
 
     let worker: CoverageWorker | Worker;
+    const setupData = {
+      changedFiles:
+        this._options.changedFiles && Array.from(this._options.changedFiles),
+      configs: Array.from(configMap.values()),
+      globalConfig: this._globalConfig,
+    };
 
     if (this._globalConfig.maxWorkers <= 1) {
       worker = require('./coverage_worker');
+      (worker as CoverageWorker).setup(setupData);
     } else {
       worker = new Worker(require.resolve('./coverage_worker'), {
         exposedMethods: ['worker'],
         maxRetries: 2,
         numWorkers: this._globalConfig.maxWorkers,
+        setupArgs: [setupData],
       });
     }
 
-    const instrumentation = files.map(async fileObj => {
-      const filename = fileObj.path;
-      const config = fileObj.config;
-
-      if (!this._coverageMap.data[filename] && 'worker' in worker) {
+    const instrumentation = files.map(async ({path, configName}) => {
+      if (!this._coverageMap.data[path] && 'worker' in worker) {
         try {
           const result = await worker.worker({
-            config,
-            globalConfig,
-            options: {
-              ...this._options,
-              changedFiles:
-                this._options.changedFiles &&
-                Array.from(this._options.changedFiles),
-            },
-            path: filename,
+            configName,
+            path,
           });
 
           if (result) {
             this._coverageMap.addFileCoverage(result.coverage);
 
             if (result.sourceMapPath) {
-              this._sourceMapStore.registerURL(filename, result.sourceMapPath);
+              this._sourceMapStore.registerURL(path, result.sourceMapPath);
             }
           }
         } catch (error) {
           console.error(
             chalk.red(
               [
-                `Failed to collect coverage from ${filename}`,
+                `Failed to collect coverage from ${path}`,
                 `ERROR: ${error.message}`,
                 `STACK: ${error.stack}`,
               ].join('\n'),

@@ -10,8 +10,8 @@
 jest.mock('fs').mock('../generateEmptyCoverage');
 
 const globalConfig = {collectCoverage: true};
-const config = {};
-const workerOptions = {config, globalConfig, path: 'banana.js'};
+const config = {name: 'testConfig'};
+const workerOptions = {configName: 'testConfig', path: 'banana.js'};
 
 let fs;
 let generateEmptyCoverage;
@@ -22,7 +22,11 @@ beforeEach(() => {
 
   fs = require('fs');
   generateEmptyCoverage = require('../generateEmptyCoverage').default;
-  worker = require('../coverage_worker').worker;
+  worker = require('../coverage_worker');
+  worker.setup({
+    configs: [config],
+    globalConfig,
+  });
 });
 
 test('resolves to the result of generateEmptyCoverage upon success', async () => {
@@ -33,7 +37,7 @@ test('resolves to the result of generateEmptyCoverage upon success', async () =>
   fs.readFileSync.mockImplementation(() => validJS);
   generateEmptyCoverage.mockImplementation(() => 42);
 
-  const result = await worker(workerOptions);
+  const result = await worker.worker(workerOptions);
 
   expect(generateEmptyCoverage).toBeCalledWith(
     validJS,
@@ -55,7 +59,7 @@ test('throws errors on invalid JavaScript', async () => {
 
   // We intentionally expect the worker to fail!
   try {
-    await worker(workerOptions);
+    await worker.worker(workerOptions);
   } catch (error) {
     expect(error).toBeInstanceOf(Error);
   }
