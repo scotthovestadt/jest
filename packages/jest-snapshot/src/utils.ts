@@ -194,8 +194,8 @@ const deepMergeArray = (target: Array<any>, source: Array<any>) => {
 };
 
 export const deepMerge = (target: any, source: any) => {
-  const mergedOutput = {...target};
   if (isObject(target) && isObject(source)) {
+    const mergedOutput = {...target};
     Object.keys(source).forEach(key => {
       if (isObject(source[key]) && !source[key].$$typeof) {
         if (!(key in target)) Object.assign(mergedOutput, {[key]: source[key]});
@@ -206,6 +206,8 @@ export const deepMerge = (target: any, source: any) => {
         Object.assign(mergedOutput, {[key]: source[key]});
       }
     });
+    return mergedOutput;
+  } else {
+    return target;
   }
-  return mergedOutput;
 };
